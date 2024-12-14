@@ -7,6 +7,8 @@
 ga <- function(type = c("binary", "real-valued", "permutation"), 
                fitness, ...,
                lower, upper, nBits,
+               maxBitsSelection = NULL,
+               callArgsMaxBits = list(),
                population = gaControl(type)$population,
                selection = gaControl(type)$selection,
                crossover = gaControl(type)$crossover, 
@@ -225,11 +227,12 @@ ga <- function(type = c("binary", "real-valued", "permutation"),
   for(iter in seq_len(maxiter))
      {
       object@iter <- iter
-      FitnessFullList <- rep(NA, popSize)
+      sizePopulation <- nrow(object@population) # difference between current population and the usual population size 
+      FitnessFullList <- rep(NA, sizePopulation)
       
       # evaluate fitness function (when needed) 
       if(!parallel)
-        { for(i in seq_len(popSize))
+        { for(i in seq_len(sizePopulation))
              if(is.na(Fitness[i]))
                { fit <- do.call(fitness, c(list(Pop[i,]), callArgs)) 
                  if(updatePop){
@@ -248,7 +251,7 @@ ga <- function(type = c("binary", "real-valued", "permutation"),
       }
       else
         { # Fitness function may give list of results 
-          FitnessFullList <- foreach(i. = seq_len(popSize)) %DO%
+          FitnessFullList <- foreach(i. = seq_len(sizePopulation)) %DO%
           { if(is.na(FitnessFullList[i.])) 
             do.call(fitness, c(list(Pop[i.,]), callArgs)) 
             else                   
@@ -353,7 +356,7 @@ ga <- function(type = c("binary", "real-valued", "permutation"),
           Fitness <- sel$fitness
         }
       else
-        { sel <- sample(1:popSize, size = popSize, replace = TRUE)
+        { sel <- sample(1:sizePopulation, size = popSize, replace = TRUE)
           Pop <- object@population[sel,]
           Fitness <- object@fitness[sel]
         }
@@ -400,6 +403,18 @@ ga <- function(type = c("binary", "real-valued", "permutation"),
           object@fitness <- Fitness
       } 
       
+      # Maximum bits that needs to be selected 
+      if (!is.null(maxBitsSelection) & is.function(maxBitsSelection)){
+        
+        tempPop <- do.call(maxBitsSelection, c(object, callArgsMaxBits))
+        
+        Pop <- tempPop$Pop
+        Fitness <- tempPop$Fitness
+        
+        object@population <- Pop
+        object@fitness <- Fitness
+      }
+          
   }
   
   # if optim is required perform a local search from the best 
