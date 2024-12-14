@@ -182,6 +182,9 @@ ga <- function(type = c("binary", "real-valued", "permutation"),
   bestSol <- if(keepBest) vector(mode = "list", length = maxiter)
              else         list()
   Fitness <- rep(NA, popSize)
+  FitnessFullList <- rep(NA, popSize)
+  allResults <- list()
+  allFitness <- list()
 
   object <- new("ga", 
                 call = call, 
@@ -200,7 +203,8 @@ ga <- function(type = c("binary", "real-valued", "permutation"),
                 pcrossover = pcrossover, 
                 pmutation = if(is.numeric(pmutation)) pmutation else NA,
                 optim = optim,
-                fitness = Fitness, 
+                fitness = Fitness,
+                allResults = allResults,
                 summary = fitnessSummary,
                 bestSol = bestSol)
   
@@ -221,29 +225,55 @@ ga <- function(type = c("binary", "real-valued", "permutation"),
   for(iter in seq_len(maxiter))
      {
       object@iter <- iter
-
-      # evalute fitness function (when needed) 
+      FitnessFullList <- rep(NA, popSize)
+      
+      # evaluate fitness function (when needed) 
       if(!parallel)
         { for(i in seq_len(popSize))
              if(is.na(Fitness[i]))
                { fit <- do.call(fitness, c(list(Pop[i,]), callArgs)) 
-                 if(updatePop)
+                 if(updatePop){
                    Pop[i,] <- attributes(fit)[[1]]
-                 Fitness[i] <- fit
+                 }
+               
+               #To be able to give multiple fitness values, but only uses the first to optimize
+                 if(is.list(fit)){
+                   Fitness[i] <- fit[[1]]
+                 } else{
+                   Fitness[i] <- fit
+                 } 
+               allFitness[i] <- list(fit)
+                 
                }
       }
       else
-        { Fitness <- foreach(i. = seq_len(popSize), .combine = "c") %DO%
-                     { if(is.na(Fitness[i.])) 
-                         do.call(fitness, c(list(Pop[i.,]), callArgs)) 
-                       else                   
-                         Fitness[i.] 
-                     }
+        { # Fitness function may give list of results 
+          FitnessFullList <- foreach(i. = seq_len(popSize)) %DO%
+          { if(is.na(FitnessFullList[i.])) 
+            do.call(fitness, c(list(Pop[i.,]), callArgs)) 
+            else                   
+              FitnessFullList[i.] 
+          }
+          # take the first results as a fitness value 
+          # others are saved 
+          Fitness <- unlist(sapply(FitnessFullList, "[[", 1))
+          attr(FitnessFullList, "rng") <- NULL
+          attr(FitnessFullList, "doRNG_version") <- NULL # will put attributes due to rng 
+          
+          allFitness <- FitnessFullList
         }
       
       # update object
       object@population <- Pop
       object@fitness <- Fitness
+      
+      if(iter == 1){
+        object@allResults <- list(allFitness)
+      }else{
+        tempResults <- append(object@allResults, list(allFitness))
+        object@allResults <- tempResults
+      }
+      
       
       # Local search optimisation
       if(optim & (type == "real-valued"))
@@ -449,6 +479,7 @@ setClass(Class = "ga",
                         pmutation = "numericOrNA",
                         optim = "logical",
                         fitness = "numericOrNA",
+                        allResults = "list",
                         summary = "matrix",
                         bestSol = "list",
                         fitnessValue = "numeric",
