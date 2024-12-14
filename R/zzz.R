@@ -8,7 +8,8 @@ GAStartupMessage <- function()
 | |  _  / _ \\    Algorithms
 | |_| |/ ___ \\   
  \\____/_/   \\_\\  version ", packageVersion("GA")),
-"\nType 'citation(\"GA\")' for citing this R package in publications.")
+"\nType 'citation(\"GA\")' for citing this R package in publications.", 
+"\n Current package has been adapted for specific analysis - YDG")
   return(msg)
 }
 
